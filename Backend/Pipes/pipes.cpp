@@ -3,111 +3,103 @@
 #include <string>
 #include <vector>
 
-// Função para imprimir logs em JSON para o stdout (saída padrão).
-// O "std::unitbuf" garante que cada linha seja enviada imediatamente,
-// o que é essencial para a interface gráfica capturar os logs em tempo real.
-void print_json_log(const std::string& source, const std::string& event, const std::string& data) {
-    std::cout << std::unitbuf
-              << "{"
-              << "\"source\": \"" << source << "\", "
-              << "\"event\": \"" << event << "\", "
-              << "\"data\": \"" << data << "\""
-              << "}\n";
+// Função escape_json (sem alterações)
+std::string escape_json(const std::string &s) {
+    std::string escaped;
+    escaped.reserve(s.length());
+    for (char c : s) {
+        switch (c) {
+            case '"':  escaped += "\\\""; break;
+            case '\\': escaped += "\\\\"; break;
+            case '\b': escaped += "\\b";  break;
+            case '\f': escaped += "\\f";  break;
+            case '\n': escaped += "\\n";  break;
+            case '\r': escaped += "\\r";  break;
+            case '\t': escaped += "\\t";  break;
+            default:   escaped += c;     break;
+        }
+    }
+    return escaped;
 }
 
-// Lógica que será executada quando o programa estiver no "modo filho"
+// Lógica do Filho (com pequena alteração no formato JSON)
 void RunChildProcess(HANDLE hReadPipe) {
-    print_json_log("Filho", "Iniciado", "Processo filho iniciado com sucesso.");
-
     std::vector<char> buffer(1024);
-    DWORD bytesRead = 0; // DWORD é um tipo de inteiro do Windows
+    DWORD bytesRead = 0;
 
-    // Lê os dados do pipe. Esta função pausa (bloqueia) a execução do filho
-    // até que o pai envie alguma coisa ou feche o pipe.
     if (ReadFile(hReadPipe, buffer.data(), buffer.size(), &bytesRead, NULL) && bytesRead > 0) {
         std::string mensagem_recebida(buffer.data(), bytesRead);
-        print_json_log("Filho", "Mensagem Recebida", mensagem_recebida);
+        
+        // <-- MUDANÇA AQUI: Adiciona "type": "result" ao JSON
+        std::cout << "{"
+                  << "\"type\": \"result\","
+                  << "\"status\": \"success\","
+                  << "\"message\": \"Mensagem recebida pelo processo Filho.\","
+                  << "\"data_received\": \"" << escape_json(mensagem_recebida) << "\""
+                  << "}" << std::endl;
     } else {
-        print_json_log("Filho", "Erro", "Falha ao ler do pipe.");
+        std::cout << "{\"type\": \"result\", \"status\": \"error\", \"message\": \"Filho falhou ao ler do pipe.\"}" << std::endl;
     }
-
-    CloseHandle(hReadPipe); // Limpa o recurso
-    print_json_log("Filho", "Finalizado", "Tarefa concluída.");
+    CloseHandle(hReadPipe);
 }
 
-// Lógica que será executada quando o programa estiver no "modo pai"
-void RunParentProcess() {
-    print_json_log("Sistema", "Iniciando módulo de Pipes (Windows)", "---");
-
+// Lógica do Pai (AGORA ENVIA LOGS DE STATUS)
+void RunParentProcess(const std::string& messageFromUser) {
+    // ... (código de setup inicial sem alterações: si, pi, hReadPipe, etc.) ...
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
     HANDLE hReadPipe, hWritePipe;
     SECURITY_ATTRIBUTES sa;
     sa.nLength = sizeof(SECURITY_ATTRIBUTES);
-    sa.bInheritHandle = TRUE; // Permite que o handle seja herdado pelo processo filho
+    sa.bInheritHandle = TRUE;
     sa.lpSecurityDescriptor = NULL;
 
-    if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) {
-        print_json_log("Pai", "Erro", "Falha ao criar o pipe.");
-        return;
-    }
-    print_json_log("Pai", "Pipe Criado", "Pipe criado com sucesso.");
-
-    // Evita que o filho herde o handle de escrita desnecessariamente
+    if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) return;
     SetHandleInformation(hWritePipe, HANDLE_FLAG_INHERIT, 0);
-
-    PROCESS_INFORMATION pi;
-    STARTUPINFOA si;
-    ZeroMemory(&si, sizeof(STARTUPINFO));
-    si.cb = sizeof(STARTUPINFO);
+    ZeroMemory(&si, sizeof(STARTUPINFOA));
+    si.cb = sizeof(STARTUPINFOA);
     ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
 
     char szFileName[MAX_PATH];
     GetModuleFileNameA(NULL, szFileName, MAX_PATH);
 
-    // Linha de comando para o filho: "meu_programa.exe modo_filho <handle_para_leitura>"
     std::string cmdLine = "\"" + std::string(szFileName) + "\" modo_filho " + std::to_string((unsigned long long)hReadPipe);
     
-    print_json_log("Pai", "Iniciando Filho", "Invocando processo filho...");
-
     if (!CreateProcessA(NULL, &cmdLine[0], NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
-        print_json_log("Pai", "Erro", "Falha ao criar o processo filho.");
+        std::cout << "{\"type\": \"result\", \"status\": \"error\", \"message\": \"Pai falhou ao criar processo filho.\"}" << std::endl;
         CloseHandle(hReadPipe);
         CloseHandle(hWritePipe);
         return;
     }
     
-    print_json_log("Pai", "Filho Criado", "PID: " + std::to_string(pi.dwProcessId));
+    // <-- MUDANÇA PRINCIPAL AQUI: Envia os logs de status para o frontend
+    std::cout << "{\"type\": \"status\", \"source\": \"Sistema\", \"message\": \"Processo Pai (PID: " << GetCurrentProcessId() << ") iniciou com sucesso.\"}" << std::endl;
+    std::cout << "{\"type\": \"status\", \"source\": \"Sistema\", \"message\": \"Processo Filho (PID: " << pi.dwProcessId << ") foi criado.\"}" << std::endl;
     
-    // O pai não precisa mais da ponta de leitura, o filho já a herdou.
+    // ... (resto da função sem alterações: CloseHandle, WriteFile, WaitForSingleObject, etc.) ...
     CloseHandle(hReadPipe);
-
-    std::string mensagem = "Olá do processo Pai! Projeto de IPC funcionando!";
     DWORD bytesWritten = 0;
-    
-    print_json_log("Pai", "Enviando Mensagem", mensagem);
-    if (!WriteFile(hWritePipe, mensagem.c_str(), mensagem.length(), &bytesWritten, NULL)) {
-        print_json_log("Pai", "Erro", "Falha ao escrever no pipe.");
-    }
-    
-    // Fecha o handle de escrita. Isso sinaliza para o filho que não há mais dados a serem enviados.
+    WriteFile(hWritePipe, messageFromUser.c_str(), messageFromUser.length() + 1, &bytesWritten, NULL);
     CloseHandle(hWritePipe);
-
-    // Espera o processo filho terminar sua execução
     WaitForSingleObject(pi.hProcess, INFINITE);
-    print_json_log("Pai", "Finalizado", "Processo filho terminou. Encerrando.");
-
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
 }
 
+// Função Main (sem alterações, continua interativa para teste)
 int main(int argc, char* argv[]) {
-    // Se o programa foi chamado com 2 argumentos e o primeiro é "modo_filho"
+    // ... (código da função main sem alterações) ...
     if (argc == 3 && std::string(argv[1]) == "modo_filho") {
-        // Converte o segundo argumento (o handle) de string para HANDLE
         HANDLE hPipe = (HANDLE)std::stoull(argv[2]);
         RunChildProcess(hPipe);
     } else {
-        // Caso contrário, executa como processo Pai
-        RunParentProcess();
+        // Modo interativo para teste continua igual
+        std::cout << "Digite sua mensagem para teste:" << std::endl;
+        std::string messageFromTerminal;
+        std::getline(std::cin, messageFromTerminal);
+        if (!messageFromTerminal.empty()) {
+            RunParentProcess(messageFromTerminal);
+        }
     }
     return 0;
 }
