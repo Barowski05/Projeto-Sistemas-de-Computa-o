@@ -13,7 +13,17 @@ wss.on("connection", (ws) => {
 
     // Repasse stdout do cliente.exe para o frontend
     cliente.stdout.on("data", (data) => {
-        ws.send(data.toString());
+        const linhas = data.toString().split(/\r?\n/); // quebra em linhas
+        linhas.forEach(linha => {
+            if (linha.trim() !== "") { // ignora linhas vazias
+                try {
+                    JSON.parse(linha.trim()); // valida se é JSON
+                    ws.send(linha.trim());    // manda pro frontend
+                } catch (err) {
+                    console.error("Linha inválida, não é JSON:", linha);
+                }
+            }
+        });
     });
 
     // Se der erro no cliente.exe
