@@ -54,7 +54,8 @@ int main() {
 	}
 	logger("client", "connect", "success");
 
-	logger("client", "info", "Digite uma mensagem para enviar ao servidor : ");
+	std::printf("Digite uma mensagem para enviar ao servidor : ");
+	std::fflush(stdout);
 	char buffer[4096]; // Buffer para armazenar dados enviados/recebidos
 
 	// Loop principal para comunicação com o servidor
@@ -81,14 +82,18 @@ int main() {
 
 		logger("client", "send", "success");
 		logger("client", "mensagem_enviada", std::string(buffer, 0, enviar).c_str()); // Log da mensagem enviada
+        std::printf("Mensagem enviada: %s\n", std::string(buffer, 0, enviar).c_str());
+        std::fflush(stdout);
 
-		// Recebe a resposta do servidor
-		int receber = recv(cliente, buffer, sizeof(buffer), 0);
+        // Recebe a resposta do servidor
+        int receber = recv(cliente, buffer, sizeof(buffer), 0);
 
-		if (receber > 0) {
-			logger("client", "recv", "success");
-			logger("client", "mensagem_recebida", std::string(buffer, receber).c_str()); // Log da mensagem recebida
-		}
+        if (receber > 0) {
+            logger("client", "recv", "success");
+            logger("client", "mensagem_recebida", std::string(buffer, receber).c_str()); // Log da mensagem recebida
+            std::printf("Mensagem recebida: %s\n", std::string(buffer, receber).c_str());
+            std::fflush(stdout);
+        }
 		else if (receber == 0) {
 			logger("client", "recv", "connection closed");
 			logger("client", "info", "Conexão fechada pelo servidor.");
@@ -102,7 +107,8 @@ int main() {
 			return 1;
 		}
 
-		logger("client", "info", "Digite uma mensagem para enviar ao servidor : ");
+		std::printf("Digite uma mensagem para enviar ao servidor : ");
+		std::fflush(stdout);
 	}
 	// Finaliza a conexão e limpa recursos
 	closesocket(cliente);
