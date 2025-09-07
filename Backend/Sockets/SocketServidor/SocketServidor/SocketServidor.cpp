@@ -10,7 +10,6 @@
 // Função de log simples que imprime no console em formato JSON
 void logger(const char* role, const char* event, const char* status) {
 	std::printf("{\"role\":\"%s\",\"event\":\"%s\",\"status\":\"%s\"}\n", role, event, status); // imprime o responsável, o evento e o status do evento em formato JSON
-	std::printf("\n");
 	std::fflush(stdout); // garante que o buffer seja esvaziado na hora
 }
 
