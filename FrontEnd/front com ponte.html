@@ -1,123 +1,112 @@
 <!DOCTYPE html>
 <head>
-  <meta charset="utf-8" />
-  <title>IPC - Frontend (simulação)</title>
-  <style> /* Parte CSS*/
-    * {
-      box-sizing: border-box; /* deixar caixas do tamanho desejado*/
-    }
+    <meta charset="utf-8" />
+    <title>IPC - Frontend (simulação)</title>
+    <style>
+        /* Parte CSS*/
+        * {
+            box-sizing: border-box;
+        }
 
-    .formatobotoes{
-      display: flex;
-      width: 50%;
-      gap: 5px; 
-      margin-top: 8px;
-    }
+        .formatobotoes {
+            display: flex;
+            width: 50%;
+            gap: 5px;
+            margin-top: 8px;
+        }
 
-    body { 
-      font-family: 'Segoe UI',sans-serif; 
-      background:#d9dbdf;
-      /* margin: 0px; usar isso se for tirar parte cinza, depois arruma o border radius do container*/
-    } 
+        body {
+            font-family: 'Segoe UI',sans-serif;
+            background: #d9dbdf;
+        }
 
-    .container { 
-      background:white; 
-      border-radius:25px; 
-      padding:20px;
-    }
+        .container {
+            background: white;
+            border-radius: 25px;
+            padding: 20px;
+        }
 
-    header h2 { 
-      margin:0;
-    }
+        header h2 {
+            margin: 0;
+        }
 
-    /*.row { 
-      display:flex; 
-      gap:16px; 
-      margin-top:10px;
-    }
+        .panel {
+            border: 1px solid #4d4b4b;
+            padding: 12px;
+            border-radius: 20px;
+        }
 
-    .col { 
-      flex:1; 
-    } */
+        .arrumawidth {
+            width: 50%
+        }
 
-    .panel { 
-      border:1px solid #4d4b4b; 
-      padding:12px; 
-      border-radius:20px; 
-    }
+        label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
 
-    .arrumawidth{
-      width: 50%
-    }
+        select, input[type=text], button {
+            width: 100%;
+            padding: 8px 10px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #cfd8e3;
+        }
 
-    label { 
-      display:block; 
-      font-size:13px; 
-      margin-bottom:6px; 
-    }
+        #log {
+            height: 400px;
+            overflow-y: auto;
+            background: rgb(0, 0, 0);
+            color: #3e9913;
+            padding: 10px;
+            border-radius: 10px;
+        }
 
-    select, input[type=text], button { 
-      width:100%;
-      padding:8px 10px; 
-      font-size:14px; 
-      border-radius:6px; 
-      border:1px solid #cfd8e3;
-    }
+        .msg {
+            margin-bottom: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+        }
 
-    #log { 
-      height:400px; 
-      overflow-y:auto; 
-      background:rgb(0, 0, 0);
-      color:#3e9913; 
-      padding:10px; 
-      border-radius:10px;
-    }
+            .msg.me {
+                text-align: left;
+            }
 
-    .msg { 
-      margin-bottom:8px; 
-      padding:6px 8px; 
-      border-radius:6px; 
-    }
+            .msg.backend {
+                text-align: left;
+            }
 
-    .msg.me { 
-      text-align:left; 
-    }
+        pre.jsoncaixa {
+            height: 120px;
+            overflow: auto;
+            padding: 8px;
+            border-radius: 6px;
+            background: #000000;
+            color: #3e9913;
+            font-size: 13px;
+        }
 
-    .msg.backend { 
-      text-align:left; 
-    }
+        .mechanism {
+            width: 50%;
+        }
 
-    pre.jsoncaixa { 
-      height:120px;
-      overflow:auto; 
-      padding:8px; 
-      border-radius:6px; 
-      background:#000000; 
-      color:#3e9913; 
-      font-size:13px; 
-    }
+        .pitico {
+            font-size: 12px;
+            color: #5b6670;
+        }
 
-    .mechanism{
-      width: 50%;
-    }
+        #statusespaco {
+            margin-bottom: 5px;
+        }
 
-    .pitico { 
-    font-size:12px; 
-    color:#5b6670; 
-    } 
-  
-    #statusespaco{
-      margin-bottom: 5px;
-    }
-
-    footer { 
-      text-align:right; 
-      margin-top:14px; 
-      font-size:12px; 
-      color:#6b7280; 
-    }
-
-  </style>
+        footer {
+            text-align: right;
+            margin-top: 14px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -131,7 +120,6 @@
         </header>
 
         <div>
-
             <div class="panel">
                 <label for="mechanism">Mecanismo de comunicação entre processos</label>
                 <select class=arrumawidth id="mechanism">
@@ -162,13 +150,11 @@
             <br>
 
             <div class="panel">
-                <!-- </div><div class="col panel"> -->
                 <label>Log - Mensagens</label>
                 <div id="log"></div>
                 <hr>
                 <label>JSON mais recente</label>
                 <pre id="jsonOutput" class="jsoncaixa">(vazio)</pre>
-                </pre>
             </div>
         </div>
     </div>
@@ -255,8 +241,16 @@
         btnSend.addEventListener('click', () => {
             const text = messageInput.value.trim();
             if (!text || !socket) return;
-            socket.send(text); // Vai pro ponte.js → cliente.exe
-            appendLog(`Você → Cliente C++: "${text}"`, 'me');
+
+            const mechanism = mechanismSelect.value || "socket";
+
+            const payload = {
+                mechanism: mechanism,
+                mensagem: text
+            };
+
+            socket.send(JSON.stringify(payload));
+            appendLog(`Você → ${mechanism}: "${text}"`, 'me');
             messageInput.value = '';
         });
 
@@ -274,3 +268,5 @@
 
         console.log('IPC Frontend conectado ao backend real (Node.js + C++).');
     </script>
+</body>
+</html>
