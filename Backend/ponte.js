@@ -7,6 +7,7 @@ console.log("🚀 Bridge Node.js rodando em ws://localhost:8080");
 
 // Caminhos dos executáveis (ajusta conforme sua estrutura de pasta/Debug/Release)
 const executaveis = {
+    pipes: "./Pipes/pipes_backend.exe",
     socket: "./Sockets/SocketServidor/SocketCliente/Debug/SocketCliente.exe",
     memcom: "./Memcomp/Debug/Memcomp.exe"
 };

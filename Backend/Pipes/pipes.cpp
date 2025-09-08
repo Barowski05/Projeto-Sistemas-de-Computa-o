@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-// Função escape_json (sem alterações)
+// Função para escapar caracteres especiais para JSON
 std::string escape_json(const std::string &s) {
     std::string escaped;
     escaped.reserve(s.length());
@@ -22,15 +22,12 @@ std::string escape_json(const std::string &s) {
     return escaped;
 }
 
-// Lógica do Filho (com pequena alteração no formato JSON)
+// Lógica do Filho
 void RunChildProcess(HANDLE hReadPipe) {
     std::vector<char> buffer(1024);
     DWORD bytesRead = 0;
-
     if (ReadFile(hReadPipe, buffer.data(), buffer.size(), &bytesRead, NULL) && bytesRead > 0) {
         std::string mensagem_recebida(buffer.data(), bytesRead);
-        
-        // <-- MUDANÇA AQUI: Adiciona "type": "result" ao JSON
         std::cout << "{"
                   << "\"type\": \"result\","
                   << "\"status\": \"success\","
@@ -43,9 +40,8 @@ void RunChildProcess(HANDLE hReadPipe) {
     CloseHandle(hReadPipe);
 }
 
-// Lógica do Pai (AGORA ENVIA LOGS DE STATUS)
+// Lógica do Pai
 void RunParentProcess(const std::string& messageFromUser) {
-    // ... (código de setup inicial sem alterações: si, pi, hReadPipe, etc.) ...
     STARTUPINFOA si;
     PROCESS_INFORMATION pi;
     HANDLE hReadPipe, hWritePipe;
@@ -72,11 +68,9 @@ void RunParentProcess(const std::string& messageFromUser) {
         return;
     }
     
-    // <-- MUDANÇA PRINCIPAL AQUI: Envia os logs de status para o frontend
     std::cout << "{\"type\": \"status\", \"source\": \"Sistema\", \"message\": \"Processo Pai (PID: " << GetCurrentProcessId() << ") iniciou com sucesso.\"}" << std::endl;
     std::cout << "{\"type\": \"status\", \"source\": \"Sistema\", \"message\": \"Processo Filho (PID: " << pi.dwProcessId << ") foi criado.\"}" << std::endl;
     
-    // ... (resto da função sem alterações: CloseHandle, WriteFile, WaitForSingleObject, etc.) ...
     CloseHandle(hReadPipe);
     DWORD bytesWritten = 0;
     WriteFile(hWritePipe, messageFromUser.c_str(), messageFromUser.length() + 1, &bytesWritten, NULL);
@@ -86,20 +80,13 @@ void RunParentProcess(const std::string& messageFromUser) {
     CloseHandle(pi.hThread);
 }
 
-// Função Main (sem alterações, continua interativa para teste)
+// Main para ser chamado pelo Electron
 int main(int argc, char* argv[]) {
-    // ... (código da função main sem alterações) ...
     if (argc == 3 && std::string(argv[1]) == "modo_filho") {
         HANDLE hPipe = (HANDLE)std::stoull(argv[2]);
         RunChildProcess(hPipe);
-    } else {
-        // Modo interativo para teste continua igual
-        std::cout << "Digite sua mensagem para teste:" << std::endl;
-        std::string messageFromTerminal;
-        std::getline(std::cin, messageFromTerminal);
-        if (!messageFromTerminal.empty()) {
-            RunParentProcess(messageFromTerminal);
-        }
+    } else if (argc == 2) {
+        RunParentProcess(argv[1]);
     }
     return 0;
 }
