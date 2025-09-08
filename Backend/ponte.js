@@ -8,12 +8,14 @@ console.log(" Bridge Node.js rodando em ws://localhost:8080");
 // Caminhos dos executáveis (ajusta conforme sua estrutura de pasta/Debug/Release)
 const executaveis = {
     pipes: "./Pipes/pipes/Debug/pipes.exe",
-    socket: "./Sockets/SocketServidor/SocketCliente/Debug/SocketCliente.exe",
+    socketClient: "./Sockets/SocketServidor/SocketCliente/Debug/SocketCliente.exe",  // 🔹 renomeei para ficar claro
+    socketServer: "./Sockets/SocketServidor/Debug/SocketServidor.exe", // 🔹 adicionei
     memcom: "./Memcomp/Debug/Memcomp.exe"
 };
 
-// Para armazenar o processo atual
+// Para armazenar os processos atuais
 let cliente = null;
+let servidor = null; // 🔹 adicionado
 
 wss.on("connection", (ws) => {
     console.log(" Frontend conectado ao WebSocket");
@@ -56,15 +58,37 @@ wss.on("connection", (ws) => {
                 return; // não cair na lógica de socket/memcom
             }
 
-            // --- SOCKET / MEMCOM: processo persistente lendo stdin ---
-            if (!executaveis[mecanismo]) {
+            // --- SOCKET / MEMCOM ---
+            if (mecanismo === "socket") {
+                // 🔹 inicia o servidor uma vez
+                if (!servidor) {
+                    servidor = spawn(executaveis.socketServer);
+                    console.log("Servidor de sockets iniciado:", executaveis.socketServer);
+
+                    servidor.stdout.on("data", (d) => {
+                        console.log("Servidor:", d.toString().trim());
+                    });
+
+                    servidor.stderr.on("data", (d) => {
+                        console.error("Erro Servidor:", d.toString());
+                    });
+
+                    servidor.on("close", () => {
+                        console.log("Servidor finalizado");
+                        servidor = null;
+                    });
+                }
+            }
+
+            if (!executaveis[mecanismo === "socket" ? "socketClient" : mecanismo]) {
                 console.error("Mecanismo desconhecido:", mecanismo);
                 return;
             }
 
             if (!cliente) {
-                cliente = spawn(executaveis[mecanismo]);
-                console.log(`Processo ${mecanismo} iniciado: ${executaveis[mecanismo]}`);
+                const execPath = executaveis[mecanismo === "socket" ? "socketClient" : mecanismo];
+                cliente = spawn(execPath);
+                console.log(`Processo ${mecanismo} iniciado: ${execPath}`);
 
                 cliente.stdout.on("data", (data) => {
                     const linhas = data.toString().split(/\r?\n/);
@@ -99,13 +123,15 @@ wss.on("connection", (ws) => {
         }
     });
 
-
     ws.on("close", () => {
         console.log(" Frontend desconectou.");
         if (cliente) {
             cliente.kill();
             cliente = null;
         }
+        if (servidor) { // 🔹 encerra o servidor junto
+            servidor.kill();
+            servidor = null;
+        }
     });
 });
-
