@@ -10,8 +10,8 @@ int main() {
     HANDLE hSemaphore = nullptr;//Variavel do semaforo criado.
 
     const int SIZE = 256;//Tamanho da Memoria criada como 256 bytes.
-    const char* sharedName = "MySharedMemory";//Nome da Memoriaa
-    const char* semaphoreName = "MySemaphore";//Nome do Semaforo
+    const char* sharedName = "MySharedMemory";//Nome da Memoria
+    const char* semaphoreName = "MySemaphore";//Nome do Semaforo 
 
     // 1. CRIA OS OBJETOS DE SINCRONIZAÇÃO E MEMÓRIA
     hSemaphore = CreateSemaphoreA(NULL, 1, 1, semaphoreName);//O Semaforo criaddo ele determina que ele é criado com as configurações originais do sistema(NULL), com a contagem iniciando em 1 e se limitando a 1 processo por vez. Assim, ele chama o nome do semaforo
