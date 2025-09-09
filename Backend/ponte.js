@@ -1,40 +1,46 @@
-﻿const { spawn } = require("child_process");
+﻿// Importa módulo para criar processos filhos
+const { spawn } = require("child_process");
+// Importa biblioteca WebSocket
 const WebSocket = require("ws");
 
 // Cria servidor WebSocket na porta 8080
 const wss = new WebSocket.Server({ port: 8080 });
 console.log(" Bridge Node.js rodando em ws://localhost:8080");
 
-// Caminhos dos executáveis (ajusta conforme sua estrutura de pasta/Debug/Release)
+// Caminhos dos executáveis 
 const executaveis = {
     pipes: "./Pipes/pipes/Debug/pipes.exe",
-    socketClient: "./Sockets/SocketServidor/SocketCliente/Debug/SocketCliente.exe",  // 🔹 renomeei para ficar claro
-    socketServer: "./Sockets/SocketServidor/Debug/SocketServidor.exe", // 🔹 adicionei
+    socketClient: "./Sockets/SocketServidor/SocketCliente/Debug/SocketCliente.exe",  
+    socketServer: "./Sockets/SocketServidor/Debug/SocketServidor.exe", 
     memcom: "./Memcomp/Debug/Memcomp.exe"
 };
 
 // Para armazenar os processos atuais
 let cliente = null;
-let servidor = null; // 🔹 adicionado
+let servidor = null; 
 
+// Evento de nova conexão WebSocket
 wss.on("connection", (ws) => {
     console.log(" Frontend conectado ao WebSocket");
 
+    // Evento de recebimento de mensagem do frontend
     ws.on("message", (msg) => {
         try {
             const parsed = JSON.parse(msg.toString());
-            const mecanismo = parsed.mechanism;   // "socket" | "memcom" | "pipe"
+            const mecanismo = parsed.mechanism;   // socket | memcom |"pipe
             const texto = parsed.mensagem || "";
 
             if (mecanismo === "pipe") {
-                // --- PIPES: spawn por mensagem (argv[1] = texto) ---
+                // Cria processo para pipes.exe passando o texto como argumento
                 const proc = spawn(executaveis.pipes, [texto]);
 
+                // Trata saída padrão do processo
                 proc.stdout.on("data", (data) => {
                     data.toString().split(/\r?\n/).forEach((linha) => {
                         const s = linha.trim();
                         if (!s) return;
                         try {
+                            // Tenta interpretar como JSON
                             const obj = JSON.parse(s);
                             let out = { role: "pipe", event: "log", status: s };
                             if (obj.type === "status") {
@@ -51,6 +57,7 @@ wss.on("connection", (ws) => {
                     });
                 });
 
+                // Trata saída de erro do processo
                 proc.stderr.on("data", (d) => {
                     ws.send(JSON.stringify({ role: "pipe", event: "error", status: d.toString().trim() }));
                 });
@@ -60,7 +67,7 @@ wss.on("connection", (ws) => {
 
             // --- SOCKET / MEMCOM ---
             if (mecanismo === "socket") {
-                // 🔹 inicia o servidor uma vez
+                // Inicia servidor de socket se não estiver rodando
                 if (!servidor) {
                     servidor = spawn(executaveis.socketServer);
                     console.log("Servidor de sockets iniciado:", executaveis.socketServer);
@@ -73,6 +80,7 @@ wss.on("connection", (ws) => {
                         console.error("Erro Servidor:", d.toString());
                     });
 
+                    // Quando servidor termina, limpa variável
                     servidor.on("close", () => {
                         console.log("Servidor finalizado");
                         servidor = null;
@@ -80,11 +88,13 @@ wss.on("connection", (ws) => {
                 }
             }
 
+            // Verifica se mecanismo é válido
             if (!executaveis[mecanismo === "socket" ? "socketClient" : mecanismo]) {
                 console.error("Mecanismo desconhecido:", mecanismo);
                 return;
             }
 
+            // Inicia processo cliente se não estiver rodando
             if (!cliente) {
                 const execPath = executaveis[mecanismo === "socket" ? "socketClient" : mecanismo];
                 cliente = spawn(execPath);
@@ -95,6 +105,7 @@ wss.on("connection", (ws) => {
                     linhas.forEach(linha => {
                         if (!linha.trim()) return;
                         try {
+                            // Se for JSON, envia para frontend
                             JSON.parse(linha.trim());
                             ws.send(linha.trim());
                         } catch {
@@ -103,6 +114,7 @@ wss.on("connection", (ws) => {
                     });
                 });
 
+                // Trata saída de erro do cliente
                 cliente.stderr.on("data", (data) => {
                     console.error("Erro do cliente:", data.toString());
                 });
@@ -119,17 +131,20 @@ wss.on("connection", (ws) => {
             }
 
         } catch (err) {
+            // Erro ao processar mensagem do frontend
             console.error("Erro ao processar mensagem do frontend:", msg, err);
         }
     });
 
+    // Evento de desconexão do frontend
     ws.on("close", () => {
         console.log(" Frontend desconectou.");
+        // Finaliza processos se existirem
         if (cliente) {
             cliente.kill();
             cliente = null;
         }
-        if (servidor) { // 🔹 encerra o servidor junto
+        if (servidor) { 
             servidor.kill();
             servidor = null;
         }
