@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8" />
+  <title>IPC - Frontend (simulação)</title>
+  <style>
+      /* Parte CSS (responsável pelo estilo visual da página) */
+      * {
+          box-sizing: border-box; /* Faz padding/border não aumentar largura total */
+      }
+
+      .formatobotoes {
+          display: flex;  /* Deixa botões lado a lado */
+          width: 50%;     /* Ocupa metade da largura */
+          gap: 5px;       /* Espaço entre os botões */
+          margin-top: 8px;
+      }
+
+      body {
+          font-family: 'Segoe UI',sans-serif; /* Fonte geral */
+          background: #d9dbdf;                /* Fundo cinza claro */
+      }
+
+      .container {
+          background: white;    /* Fundo branco */
+          border-radius: 25px;  /* Bordas arredondadas */
+          padding: 20px;        /* Espaçamento interno */
+      }
+
+      header h2 {
+          margin: 0;
+      }
+
+      .panel {
+          border: 1px solid #4d4b4b; /* Bordas cinzas */
+          padding: 12px;
+          border-radius: 20px;
+      }
+
+      .arrumawidth {
+          width: 50%; /* Ajusta largura de elementos */
+      }
+
+      label {
+          display: block;       /* Cada label ocupa linha inteira */
+          font-size: 13px;
+          margin-bottom: 6px;
+      }
+
+      select, input[type=text], button {
+          width: 100%;              /* Largura total */
+          padding: 8px 10px;
+          font-size: 14px;
+          border-radius: 6px;       /* Bordas arredondadas */
+          border: 1px solid #cfd8e3;
+      }
+
+      #log {
+          height: 400px;            /* Altura fixa */
+          overflow-y: auto;         /* Barra de rolagem vertical */
+          background: rgb(0, 0, 0); /* Fundo preto */
+          color: #3e9913;           /* Texto verde */
+          padding: 10px;
+          border-radius: 10px;
+      }
+
+      .msg {
+          margin-bottom: 8px;
+          padding: 6px 8px;
+          border-radius: 6px;
+      }
+
+          .msg.me {
+              text-align: left; /* Mensagens do usuário */
+          }
+
+          .msg.backend {
+              text-align: left; /* Mensagens do backend */
+          }
+
+      pre.jsoncaixa {
+          height: 120px;
+          overflow: auto;
+          padding: 8px;
+          border-radius: 6px;
+          background: #000000; /* Fundo preto */
+          color: #3e9913;      /* Texto verde */
+          font-size: 13px;
+      }
+
+      .mechanism {
+          width: 50%;
+      }
+
+      .pitico {
+          font-size: 12px;
+          color: #5b6670; /* Cinza mais claro */
+      }
+
+      #statusespaco {
+          margin-bottom: 5px;
+      }
+
+      footer {
+          text-align: right;
+          margin-top: 14px;
+          font-size: 12px;
+          color: #6b7280;
+      }
+  </style>
+</head>
+<body>
+  <div class="container"> <!-- Caixa principal do conteúdo -->
+
+      <header>
+          <h2>Comunicação entre processos</h2>
+          <br>
+          <!-- Mostra se está rodando ou parado -->
+          <div id=statusespaco>
+              Status: <strong id="statusText">parado</strong>
+          </div>
+      </header>
+
+      <div>
+          <div class="panel"> <!-- Painel de seleção de mecanismo e envio -->
+              <label for="mechanism">Mecanismo de comunicação entre processos</label>
+              <select class=arrumawidth id="mechanism">
+                  <!-- Opções de IPC -->
+                  <option value="" disabled selected hidden> escolha uma opção </option>
+                  <option value="pipe">Pipes Anônimos</option>
+                  <option value="socket">Sockets (locais)</option>
+                  <option value="memcom">Memória Compartilhada</option>
+              </select>
+              <!-- Botões de iniciar/parar -->
+              <div class="formatobotoes">
+                  <button id="btnStart"> Iniciar </button>
+                  <button id="btnStop"> Parar </button>
+              </div>
+              <br>
+              <hr>
+              <br>
+              <!-- Campo de mensagem -->
+              <label for="message">Mensagem (entrada)</label>
+              <div class=arrumawidth>
+                  <input type="text" id="message" placeholder="Digite sua mensagem" />
+              </div>
+              <!-- Botões enviar/limpar -->
+              <div class="formatobotoes">
+                  <button id="btnSend">Enviar</button>
+                  <button id="btnClear">Limpar log</button>
+              </div>
+
+              <p class="pitico">O log vai mostrar tanto entrada quanto saída</p>
+          </div>
+
+          <br>
+
+          <div class="panel"> <!-- Painel do log -->
+              <label>Log - Mensagens</label>
+              <div id="log"></div> <!-- Aqui aparecem mensagens -->
+              <hr>
+              <label>JSON mais recente</label>
+              <pre id="jsonOutput" class="jsoncaixa">(vazio)</pre> <!-- Última msg em JSON -->
+          </div>
+      </div>
+  </div>
+
+  <script>
+      // ----------------------------------
+      // Variáveis de controle (pega elementos do HTML)
+      // ----------------------------------
+      const statusText = document.getElementById('statusText');  
+      const btnStart = document.getElementById('btnStart');      
+      const btnStop = document.getElementById('btnStop');        
+      const btnSend = document.getElementById('btnSend');        
+      const btnClear = document.getElementById('btnClear');      
+      const logEl = document.getElementById('log');              
+      const jsonOutput = document.getElementById('jsonOutput');  
+      const messageInput = document.getElementById('message');   
+      const mechanismSelect = document.getElementById('mechanism'); 
+
+      let socket = null; // conexão WebSocket
+
+      // ----------------------------------
+      // Funções auxiliares
+      // ----------------------------------
+
+      // Retorna horário atual em string
+      function formatTime(d = new Date()) {
+          return d.toLocaleString();
+      }
+
+      // Insere texto no log com horário
+      function appendLog(text, cls = 'me') {
+          const div = document.createElement('div');
+          div.className = 'msg ' + cls;
+          div.innerHTML = `<small class="pitico">${formatTime()}</small><div>${escapeHtml(text)}</div>`;
+          logEl.appendChild(div);
+          logEl.scrollTop = logEl.scrollHeight; // rolagem automática
+      }
+
+      // Evita injeção de HTML nas mensagens
+      function escapeHtml(unsafe) {
+          return unsafe
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/\"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+      }
+
+      // Atualiza status visual (rodando/parado)
+      function setStatus(running) {
+          statusText.textContent = running ? 'rodando' : 'parado';
+      }
+
+      // ----------------------------------
+      // Eventos dos botões
+      // ----------------------------------
+
+      // Iniciar conexão WebSocket
+      btnStart.addEventListener('click', () => {
+          socket = new WebSocket("ws://localhost:8080");
+
+          // Quando conectar
+          socket.onopen = () => {
+              setStatus(true);
+              appendLog("Conectado ao backend via ponte Node.js", 'backend');
+          };
+
+          // Quando receber mensagem do backend
+          socket.onmessage = (event) => {
+              try {
+                  const data = JSON.parse(event.data); // tenta interpretar como JSON
+                  appendLog(`${data.role} → ${data.event}: ${data.status}`, 'backend');
+                  jsonOutput.textContent = JSON.stringify(data, null, 2); // exibe formatado
+              } catch (e) {
+                  appendLog("Mensagem inválida do backend: " + event.data, 'backend');
+              }
+          };
+
+          // Quando desconectar
+          socket.onclose = () => {
+              setStatus(false);
+              appendLog("Conexão fechada com o backend", 'backend');
+          };
+      });
+
+      // Parar conexão
+      btnStop.addEventListener('click', () => {
+          if (socket) {
+              socket.close(); // fecha se existir
+              socket = null;
+          }
+          setStatus(false);
+      });
+
+      // Enviar mensagem para backend
+      btnSend.addEventListener('click', () => {
+          const text = messageInput.value.trim();
+          if (!text || !socket) return; // não envia se vazio ou sem conexão
+
+          const mechanism = mechanismSelect.value || "socket"; // pega mecanismo selecionado
+
+          const payload = {
+              mechanism: mechanism,
+              mensagem: text
+          };
+
+          socket.send(JSON.stringify(payload)); // manda em JSON
+          appendLog(`Você → ${mechanism}: "${text}"`, 'me'); // mostra no log
+          messageInput.value = ''; // limpa campo
+      });
+
+      // Limpar log e área JSON
+      btnClear.addEventListener('click', () => {
+          logEl.innerHTML = '';
+          jsonOutput.textContent = '(vazio)';
+      });
+
+      // Enviar com Enter no input
+      messageInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') btnSend.click();
+      });
+
+      // Define status inicial
+      setStatus(false);
+
+      console.log('IPC Frontend conectado ao backend real (Node.js + C++).');
+  </script>
+</body>
+</html>
